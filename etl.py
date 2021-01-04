@@ -1,13 +1,13 @@
 import configparser
 from datetime import datetime
 import os
+from json import loads
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import udf, col
 from pyspark.sql.functions import year, month, dayofmonth, hour, weekofyear, date_format
 
-
-config = configparser.ConfigParser()
-config.read("dl.cfg")
+with open("dl.json.template") as js:
+    config = loads(js.read())
 
 os.environ["AWS_ACCESS_KEY_ID"] = config["AWS_ACCESS_KEY_ID"]
 os.environ["AWS_SECRET_ACCESS_KEY"] = config["AWS_SECRET_ACCESS_KEY"]
