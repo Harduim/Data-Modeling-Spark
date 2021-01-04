@@ -1,0 +1,8 @@
+name: dm_spark
+channels:
+  - defaults
+dependencies:
+  - pandas
+  - boto3
+  - jupyter
+  - pyspark
