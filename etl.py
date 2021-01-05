@@ -1,9 +1,7 @@
-from datetime import datetime
 import os
 from json import loads
+
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import udf, col
-from pyspark.sql.functions import year, month, dayofmonth, hour, weekofyear, date_format
 
 with open("dl.json") as js:
     config = loads(js.read())
