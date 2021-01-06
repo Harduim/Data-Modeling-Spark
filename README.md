@@ -1,7 +1,7 @@
 # Data Lake with Apache Spark and Amazon S3 | Udacity Project 04
 
 Main goals of this project:  
-- Migrate files on S3 from JSON to Parquet Pyspark.
+- Migrate files on S3 from JSON to Parquet using Pyspark.
 - Migrated data should be in a star schema
 
 
