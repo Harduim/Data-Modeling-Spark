@@ -102,7 +102,7 @@ def process_log_data(spark: SparkSession, input_data: str, output_data: str):
     songplays_table.createOrReplaceTempView("songplays")
 
     time_table = spark.sql(
-        """SELECT start_time,
+        """SELECT DISTINCT(start_time),
                 hour(start_time) as hour,
                 day(start_time) as day,
                 weekofyear(start_time) as week,
@@ -114,7 +114,7 @@ def process_log_data(spark: SparkSession, input_data: str, output_data: str):
 
     # Leaving write for last in case anything goes wrong in the conversion step
     time_output = os.path.join(output_data, "time_parquet")
-    time_table.write.partitionBy("year").parquet(time_output, "overwrite")
+    time_table.write.partitionBy("year", "month").parquet(time_output, "overwrite")
 
     user_output = os.path.join(output_data, "users_parquet")
     user_table.write.parquet(user_output, "overwrite")
