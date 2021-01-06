@@ -10,7 +10,7 @@ os.environ["AWS_ACCESS_KEY_ID"] = config["AWS_ACCESS_KEY_ID"]
 os.environ["AWS_SECRET_ACCESS_KEY"] = config["AWS_SECRET_ACCESS_KEY"]
 
 
-def create_spark_session():
+def create_spark_session() -> SparkSession:
     """Creates a spark session
 
     Returns:
@@ -23,17 +23,15 @@ def create_spark_session():
     return spark
 
 
-def process_song_data(spark, input_data, output_data, only_sample=True):
+def process_song_data(spark: SparkSession, input_data: str, output_data: str):
     """Process the song files
 
     Args:
-        spark ([type]): Spark Session
+        spark (SparkSession): Spark Session
         input_data (str): input data path
-        output_data ([type]): output data path
-        only_sample (bool, optional): Defines if the full song dataset will be used. Defaults to True.
+        output_data (str): output data path
     """
-    song_path = "song_data/*/*/*/*.json" if not only_sample else "song_data/A/A/A/*.json"
-    song_data_path = os.path.join(input_data, song_path)
+    song_data_path = os.path.join(input_data, "song_data/*/*/*/*.json")
     song_data = spark.read.json(song_data_path).dropDuplicates().cache()
     song_data.createOrReplaceTempView("song_data_raw")
 
@@ -45,10 +43,10 @@ def process_song_data(spark, input_data, output_data, only_sample=True):
     # Extracting columns to create the artists table
     artists_table = spark.sql(
         """SELECT DISTINCT(artist_id),
-                  artist_name,
-                  artist_location,
-                  artist_latitude,
-                  artist_longitude
+                  artist_name as name,
+                  artist_location as location,
+                  artist_latitude as latitude,
+                  artist_longitude as longitude
             FROM song_data_raw;"""
     )
     artists_table.createOrReplaceTempView("artists")
@@ -63,7 +61,14 @@ def process_song_data(spark, input_data, output_data, only_sample=True):
     songs_table.write.partitionBy("year", "artist_id").parquet(songs_output, "overwrite")
 
 
-def process_log_data(spark, input_data, output_data):
+def process_log_data(spark: SparkSession, input_data: str, output_data: str):
+    """Process events
+
+    Args:
+        spark (SparkSession): Spark Session
+        input_data (str): input data path
+        output_data (str): output data path
+    """
     events_path = os.path.join(input_data, "log_data/2018/11/*events.json")
     log_data = spark.read.json(events_path).dropDuplicates()
     log_data.createOrReplaceTempView("events_raw")
@@ -73,47 +78,43 @@ def process_log_data(spark, input_data, output_data):
 
     user_table = spark.sql(
         """SELECT DISTINCT(userId) as user_id,
-                firstName,
-                lastName,
+                firstName as first_name,
+                lastName as last_name,
                 gender,
                 level
             FROM events_raw;"""
     )
-    return
 
     songplays_table = spark.sql(
-        """SELECT from_unixtime(evnt.ts / 1000) as start_time,
-                evnt.userId as user_id,
-                evnt.level,
+        """SELECT uuid() as songplay_id,
+                from_unixtime(ts / 1000) as start_time,
+                userId as user_id,
+                level,
+                songs.song_id,
                 artists.artist_id,
-                evnt.sessionId as session_id,
-                evnt.location,
-                evnt.user_agent
-            FROM events_raw AS evnt
-            INNER JOIN artists on evnt.artist = artists.artist_name
-            """
+                sessionId as session_id,
+                events_raw.location,
+                userAgent
+            FROM events_raw
+            JOIN artists on events_raw.artist = artists.name
+            JOIN songs on events_raw.song = songs.title"""
     )
-
-    # songs.song_id,
-    # INNER JOIN songs ON evnt.song = songs.title AND evnt.lengh = song.duration
-
-    # songplay_id, start_time, user_id, level, song_id, artist_id, session_id, location, user_agent
+    songplays_table.createOrReplaceTempView("songplays")
 
     time_table = spark.sql(
-        """SELECT row_number() as songplay_id,
-                  start_time,
-                  hour(start_time) as hour,
-                  day(start_time) as day,
-                  weekofyear(start_time) as week,
-                  month(start_time) as month,
-                  year(start_time) as year,
-                  dayofweek(start_time) as weekday
+        """SELECT start_time,
+                hour(start_time) as hour,
+                day(start_time) as day,
+                weekofyear(start_time) as week,
+                month(start_time) as month,
+                year(start_time) as year,
+                dayofweek(start_time) as weekday
             FROM songplays;"""
     )
 
     # Leaving write for last in case anything goes wrong in the conversion step
     time_output = os.path.join(output_data, "time_parquet")
-    time_table.write.parquet(time_output, "overwrite")
+    time_table.write.partitionBy("year").parquet(time_output, "overwrite")
 
     user_output = os.path.join(output_data, "users_parquet")
     user_table.write.parquet(user_output, "overwrite")
@@ -124,12 +125,8 @@ def process_log_data(spark, input_data, output_data):
 
 if __name__ == "__main__":
     spark = create_spark_session()
-    input_data = "s3a://udacity-dend/"
+    input_data = config["INPUT_BUCKET"]
     output_data = config["OUTPUT_BUCKET"]
 
     process_song_data(spark, input_data, output_data)
     process_log_data(spark, input_data, output_data)
-
-    events_raw = spark.sql("""SELECT * FROM events_raw""")
-    songs = spark.sql("""SELECT * FROM songs""")
-    artists = spark.sql("""SELECT * FROM artists""")
