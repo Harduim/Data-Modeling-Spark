@@ -11,6 +11,11 @@ os.environ["AWS_SECRET_ACCESS_KEY"] = config["AWS_SECRET_ACCESS_KEY"]
 
 
 def create_spark_session():
+    """Creates a spark session
+
+    Returns:
+        sparkSession
+    """
     spark = SparkSession.builder.config(
         "spark.jars.packages", "org.apache.hadoop:hadoop-aws:2.7.0"
     ).getOrCreate()
@@ -19,6 +24,14 @@ def create_spark_session():
 
 
 def process_song_data(spark, input_data, output_data, only_sample=True):
+    """Process the song files
+
+    Args:
+        spark ([type]): Spark Session
+        input_data (str): input data path
+        output_data ([type]): output data path
+        only_sample (bool, optional): Defines if the full song dataset will be used. Defaults to True.
+    """
     song_path = "song_data/*/*/*/*.json" if not only_sample else "song_data/A/A/A/*.json"
     song_data_path = os.path.join(input_data, song_path)
     song_data = spark.read.json(song_data_path).dropDuplicates().cache()
@@ -27,7 +40,7 @@ def process_song_data(spark, input_data, output_data, only_sample=True):
     songs_table = spark.sql(
         "SELECT DISTINCT(song_id) as song_id, title, artist_id, year, duration FROM song_data_raw;"
     )
-    songs_table.createOrReplaceTempView("song_data")
+    songs_table.createOrReplaceTempView("songs")
 
     # Extracting columns to create the artists table
     artists_table = spark.sql(
@@ -66,26 +79,28 @@ def process_log_data(spark, input_data, output_data):
                 level
             FROM events_raw;"""
     )
+    return
 
     songplays_table = spark.sql(
-        """SELECT unixtime(evnt.ts / 1000) as start_time,
-                evnt.userId as user_id
+        """SELECT from_unixtime(evnt.ts / 1000) as start_time,
+                evnt.userId as user_id,
                 evnt.level,
-                songs.song_id,
                 artists.artist_id,
                 evnt.sessionId as session_id,
                 evnt.location,
                 evnt.user_agent
             FROM events_raw AS evnt
             INNER JOIN artists on evnt.artist = artists.artist_name
-            INNER JOIN songs ON evnt.song = songs.title AND evnt.lengh = song.duration
             """
     )
+
+    # songs.song_id,
+    # INNER JOIN songs ON evnt.song = songs.title AND evnt.lengh = song.duration
 
     # songplay_id, start_time, user_id, level, song_id, artist_id, session_id, location, user_agent
 
     time_table = spark.sql(
-        """SELECT row_number() as songplay_id
+        """SELECT row_number() as songplay_id,
                   start_time,
                   hour(start_time) as hour,
                   day(start_time) as day,
@@ -112,5 +127,9 @@ if __name__ == "__main__":
     input_data = "s3a://udacity-dend/"
     output_data = config["OUTPUT_BUCKET"]
 
-    # process_song_data(spark, input_data, output_data)
+    process_song_data(spark, input_data, output_data)
     process_log_data(spark, input_data, output_data)
+
+    events_raw = spark.sql("""SELECT * FROM events_raw""")
+    songs = spark.sql("""SELECT * FROM songs""")
+    artists = spark.sql("""SELECT * FROM artists""")
