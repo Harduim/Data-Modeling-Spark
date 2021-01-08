@@ -36,17 +36,22 @@ def process_song_data(spark: SparkSession, input_data: str, output_data: str):
     song_data.createOrReplaceTempView("song_data_raw")
 
     songs_table = spark.sql(
-        "SELECT DISTINCT(song_id) as song_id, title, artist_id, year, duration FROM song_data_raw;"
+        """SELECT DISTINCT(INT(song_id)) AS song_id,
+                STRING(title) AS title,
+                INT(artist_id) AS artist_id,
+                INT(year) AS year,
+                DOUBLE(duration) AS duration
+            FROM song_data_raw;"""
     )
     songs_table.createOrReplaceTempView("songs")
 
     # Extracting columns to create the artists table
     artists_table = spark.sql(
-        """SELECT DISTINCT(artist_id),
-                  artist_name as name,
-                  artist_location as location,
-                  artist_latitude as latitude,
-                  artist_longitude as longitude
+        """SELECT DISTINCT(INT(artist_id)) AS artist_id,
+                  STRING(artist_name) AS name,
+                  STRING(artist_location) AS location,
+                  STRING(artist_latitude) AS latitude,
+                  STRING(artist_longitude) AS longitude
             FROM song_data_raw;"""
     )
     artists_table.createOrReplaceTempView("artists")
@@ -77,24 +82,26 @@ def process_log_data(spark: SparkSession, input_data: str, output_data: str):
     events.createOrReplaceTempView("events_raw")
 
     user_table = spark.sql(
-        """SELECT DISTINCT(userId) as user_id,
-                firstName as first_name,
-                lastName as last_name,
-                gender,
-                level
+        """SELECT DISTINCT(INT(userId)) as user_id,
+                STRING(firstName) as first_name,
+                STRING(lastName) as last_name,
+                STRING(gender) AS gender,
+                STRING(level) AS level
             FROM events_raw;"""
     )
 
     songplays_table = spark.sql(
-        """SELECT uuid() as songplay_id,
-                from_unixtime(ts / 1000) as start_time,
-                userId as user_id,
-                level,
-                songs.song_id,
-                artists.artist_id,
-                sessionId as session_id,
-                events_raw.location,
-                userAgent
+        """SELECT INT(uuid()) AS songplay_id,
+                TIMESTAMP(from_unixtime(ts / 1000)) AS start_time,
+                INT(userId) AS user_id,
+                STRING(level) AS level,
+                INT(songs.song_id) AS song_id,
+                INT(artists.artist_id) AS artist_id,
+                INT(sessionId) as session_id,
+                STRING(events_raw.location) AS location,
+                STRING(userAgent) as user_agent,
+                SMALLINT(year(from_unixtime(ts / 1000))) as year,
+                SMALLINT(month(from_unixtime(ts / 1000))) as month
             FROM events_raw
             JOIN artists on events_raw.artist = artists.name
             JOIN songs on events_raw.song = songs.title"""
@@ -102,13 +109,13 @@ def process_log_data(spark: SparkSession, input_data: str, output_data: str):
     songplays_table.createOrReplaceTempView("songplays")
 
     time_table = spark.sql(
-        """SELECT DISTINCT(start_time),
-                hour(start_time) as hour,
-                day(start_time) as day,
-                weekofyear(start_time) as week,
-                month(start_time) as month,
-                year(start_time) as year,
-                dayofweek(start_time) as weekday
+        """SELECT DISTINCT(TIMESTAMP(start_time)),
+                SMALLINT(hour(start_time)) as hour,
+                SMALLINT(day(start_time)) as day,
+                SMALLINT(weekofyear(start_time)) as week,
+                SMALLINT(month) AS month,
+                SMALLINT(year) AS year,
+                SMALLINT(dayofweek(start_time)) as weekday
             FROM songplays;"""
     )
 
@@ -120,7 +127,7 @@ def process_log_data(spark: SparkSession, input_data: str, output_data: str):
     user_table.write.parquet(user_output, "overwrite")
 
     songplays_ouput = os.path.join(output_data, "songplays_parquet")
-    songplays_table.write.parquet(songplays_ouput, "overwrite")
+    songplays_table.write.partitionBy("year", "month").parquet(songplays_ouput, "overwrite")
 
 
 if __name__ == "__main__":
